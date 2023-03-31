@@ -77,5 +77,81 @@ const config = {
 }
 ```
 ## 特性开关
-设计框架时，我们可以提供A，B，C三个特性，同时提供a,b,c三个开关，根据开关状态判断是否启用某个特性，如果
+设计框架时，我们可以提供A，B，C三个特性，同时提供a,b,c三个开关，根据开关状态判断是否启用某个特性，如果开关关闭，则可以在Tree-Shaking时删除对应的特性代码，减小最终的体积。
+那么如何实现特性开关呢？仍然是使用rollup的自定义常量。
+比如在Vue3中就有一个特性开关__VUE_OPTIONS_API__， 如果开启则能够使用Vue2的选项式组件，如果我们不需要，则可以将这个开关置为false，这时就会去掉选项式相关的代码。
+## 错误处理
+错误处理是框架开发过程中的一个关键环节，良好的错误处理机制能够增强用户代码的健壮性，减小用户的心智负担。
+加入我们给用户提供了一个模块，模块中导出了一个方法
+```js
+//utils.js
+export default {
+  foo(fn){
+    fn&&fn();
+  }
+}
+```
 
+错误处理有以下几种方案：
+1. 用户自行处理。
+  ```js
+  import utils from 'utils'
+  try{
+    utils.foo();
+  }catch(err){
+    console.log('出错啦')
+  }
+  ```
+这种方法会增加用户负担，而且如果有很多函数时，不能能每一个都让用户手动添加try...catch
+
+2. 我们代替用户处理错误
+```js
+//utils.js
+export default {
+  foo(fn){
+    try{
+      fn&&fn();
+    }catch(err){
+      console.log('出错啦')
+    }
+  }
+  bar(fn){
+    try{
+      fn&&fn();
+    }catch(err){
+      console.log('出错啦')
+    }
+  }
+}
+```
+可以进一步封装为
+```js
+//utils.js
+let handleError = null;
+export default {
+  callWithErrorHandling(fn){
+    try{
+      fn&&fn();
+    }catch(err){
+      handleError(err);
+    }
+  }
+  foo(fn){
+    callWithErrorHandling(fn)
+  }
+  bar(fn){
+    callWithErrorHandling(fn)
+  }
+  //用户可以自己注册错误处理函数
+  registerErrorHandler(fn){
+    handleError = fn;
+  }
+}
+```
+用户通过注册自定义错误处理函数，获得了完全的错误处理权限，可以自己决定如何处理错误，这也是Vue的处理手段。
+```js
+  import App from 'App.vue'
+  const app = createApp(App)
+  app.config.errorHandler = () => { // 错误处理程序
+  }
+```
