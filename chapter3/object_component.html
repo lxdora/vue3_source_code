@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>对象式组件</title>
+</head>
+<body>
+  <div id="app"></div>
+</body>
+<script>
+  const MyComponent = {
+    render(){
+      return {
+        tag: 'div',
+        props: {
+          onClick: ()=>alert('object component')
+        },
+        children: 'click me'
+      }
+    }
+  }
+  function render(vnode, root){
+    if(typeof vnode === 'object'){
+      const vdom = vnode.render();
+      const el = document.createElement(vdom.tag);
+      for(let key in vdom.props){
+        if(/^on/.test(key)){
+          el.addEventListener(key.substring(2).toLocaleLowerCase(),
+          vdom.props[key])
+        }
+      }
+      if(typeof vdom.children === 'string'){
+        el.appendChild(document.createTextNode(vdom.children))
+      }else{
+        vdom.children.forEach(element => {
+          render(element, el)
+        });
+      }
+      root.appendChild(el)
+    }
+  }
+  render(MyComponent, document.getElementById('app'))
+</script>
+</html>

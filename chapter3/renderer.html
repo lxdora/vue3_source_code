@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>简易渲染器</title>
+</head>
+<body>
+  <div id="app"></div>
+</body>
+<script>
+  const vdom = {
+    tag: 'div',
+    props: {
+      onClick: ()=>alert('hello')
+    },
+    children: 'click me'
+  }
+  function render(vnode, root){
+    const node = document.createElement(vnode.tag);
+    for(let key in vnode.props) {
+      if(/^on/.test(key)){
+        node.addEventListener(key.substring(2).toLocaleLowerCase(), vnode.props[key])
+      }
+    }
+    if(typeof vnode.children === 'string'){
+      node.appendChild(document.createTextNode(vnode.children))
+    }else if (Array.isArray(vnode.children)){
+      vnode.children.forEach(element => {
+        render(element, node)
+      });
+    }
+    root.appendChild(node)
+  }
+  render(vdom, document.getElementById('app'))
+</script>
+</html>

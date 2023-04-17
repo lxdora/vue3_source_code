@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>函数式组件</title>
+</head>
+<body>
+  <div id="app"></div>
+</body>
+<script>
+  const MyComponent = function(){
+    return {
+      tag: 'div',
+      props: {
+        onClick: ()=>alert('functional component')
+      },
+      children: 'click me'
+    }
+  }
+  const vnode = {
+    tag: MyComponent
+  }
+  function render(vnode, root){
+    if(typeof vnode.tag==='function'){
+      mountComponent(vnode, root)
+    }else{
+      mountElement(vnode, root)
+    }
+  }
+  function mountComponent(vnode, root){
+    const vdom = vnode.tag();
+    mountElement(vdom, root);
+  }
+  function mountElement(vnode, root){
+    const el = document.createElement(vnode.tag)
+    for(let key in vnode.props){
+      if(/^on/.test(key)){
+        const e = key.substring(2).toLocaleLowerCase();
+        window.addEventListener(e, vnode.props[key])
+      }
+    }
+    if(Array.isArray(vnode.children)){
+      vnode.children.forEach(element => {
+        render(element, el)
+      });
+    }else{
+      el.appendChild(document.createTextNode(vnode.children));
+    }
+    root.appendChild(el)
+  }
+  render(vnode, document.getElementById('app'))
+</script>
+</html>
