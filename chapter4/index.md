@@ -31,11 +31,11 @@ function effect() {
 2.当修改obj.name的值时，会触发obj.name字段的设置操作
 那么如果能拦截属性的读取和设置操作，当读取时存储副作用函数，当设置时就执行存储的副作用函数，实现响应式就成为了可能。
 关键在于如何拦截属性的读取和设置操作，es2015之前使用Object.defineProperty,之后则使用Proxy
-[一个能够实现最简单的响应式的例子]('./reactive1.js')
+[一个能够实现最简单的响应式的例子](reactive1.js)
 上面这个代码能够实现响应式，但是有很明显的缺陷，就是写死了副作用函数的名称effect，实际中的副作用函数可能是任意一个函数。
-[提供了副作用函数的注册机]('./reactive2.js')
+[提供了副作用函数的注册机](reactive2.js)
 上面这个代码提供了一个副作用函数的注册机，这样我们可以使用任意的副作用函数。但是又发现如果在对象上添加了一个不存在的属性，副作用函数也重新执行了，我们本意是只在修改指定属性的时候执行副作用函数。为了解决这个问题，需要重新设计数据结构，将对象属性和副作用函数绑定起来。
-[设计全新的桶结构]('./reactive3.js')
+[设计全新的桶结构](reactive3.js)
 上面这个代码重新设计了数据桶的结构
 ![数据结构](./images/bucket%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.svg)
 
@@ -83,10 +83,10 @@ function effect() {
   注意：由于 WeakMap 对象中的键必须是对象，因此使用时需要特别注意传递的参数类型。同时，在使用 WeakMap 的过程中因为弱引用的特性，很容易造成内存泄漏或程序运行出错等问题。
 </details>
 
-[封装track和trigger函数]('./reactive4.js')
+[封装track和trigger函数](reactive4.js)
 ## 分支切换
 分支切换的含义如下：
-[分支切换]('./reactive5.html')
+[分支切换](reactive5.html)
 ```js
 /**
  * 分支切换的含义如下：
@@ -99,5 +99,52 @@ function myEffect(){
 ```
 第一次执行时，flag为true， 这时候flag和text都会与副作用函数建立联系
 @import "./images/属性与副作用函数建立联系.svg"
-后面修改text属性的值时，由于text属性依然与副作用函数绑定，因此仍然会执行副作用函数
+后面修改text属性的值时，由于text属性依然与副作用函数绑定，因此仍然会执行副作用函数。
+解决这个问题的思路是：在副作用函数执行前，先将其从依赖的副作用函数集合中移除，执行完成后，再重新建立联系，新的联系中就不包含遗留的副作用函数
+[修改副作用函数注册器，实现在副作用函数执行前删除依赖](reactive7.html)
+上面的代码执行后会陷入死循环，原因在trigger执行过程中
+@import "./reactive7.html" {code_block=true line_begin=33 line_end=41}
+在trigger函数中，遍历了副作用函数并执行，在副作用函数执行之前从依赖集合中删除了副作用函数，但是副作用函数的继续执行触发了track，再次将该副作用函数收集到依赖集合中，导致陷入了死循环。类似于下面这种情况
+```js
+const set = new Set([1]);
+set.forEach(item=>{
+  set.delete(1)
+  set.add(1)
+  console.log('遍历中')
+})
+```
+解决方法也很简单，另外构造一个集合遍历
+```js
+const set = new Set([1])
+const newSet = new Set(set)
+newSet.forEach(item=>{
+  set.delete(1)
+  set.add(1)
+  console.log('遍历中')
+})
+```
+[解决死循环问题](reactive8.html)
+## effect嵌套
+effect应当是支持嵌套的，Vue组件的渲染函数就是在一个effect中执行的，因此当发生组件嵌套时实际上就发生了effect的嵌套
+```jsx
+class Foo {
+  render(){
+    return <Bar />
+  }
+}
+class Bar {
+  render(){
+    return '<div>bar</div>'
+  }
+}
+```
+相当于
+```js
+effect(()=>{
+  Foo.render()
+  effect(()=>{
+    Bar.render()
+  })
+})
+```
 
