@@ -44,7 +44,7 @@ const proxyObj = new Proxy(obj, {
   }
 })
 let activeEffect;
-
+const effectStack = [];
 /**
  * @params effect :副作用函数
  * 接收副作用函数作为参数，遍历副作用函数的effect.deps数组，数组的每一项
@@ -65,10 +65,13 @@ function cleanup (effect) {
 //副作用函数注册器,重新设计副作用函数注册器
 function registerEffect (fn){
   const effect = () => {
-    activeEffect = effect;
     //副作用函数执行前，清空依赖
     cleanup(effect);
+    activeEffect = effect;
+    effectStack.push(effect);
     fn();
+    effectStack.pop();
+    activeEffect = effectStack[effectStack.length-1];
   }
   //存储副作用函数的依赖集合
   effect.deps=[];
@@ -93,4 +96,5 @@ function effectFn1(){
  *      --effectFn2
  */
 registerEffect(effectFn1) //依次打印effectFn1执行了和effectFn2执行了
-proxyObj.foo = 'm_foo' //这里修改了foo的值，期望打印effectFn1打印了，但实际打印的却是effectFn2打印了
+proxyObj.foo = 'm_foo' //这里修改了foo的值，依次打印了effectFn1执行了和effectFn2执行了
+proxyObj.bar = 'm_bar' //这里修改了bar的值，连续打印了两次effectFn2执行了
