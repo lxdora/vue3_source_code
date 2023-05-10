@@ -1,9 +1,10 @@
 /**
- * 调度器，限制执行次数
+ * 在副作用函数中使用computed的值
  */
 const bucket = new WeakMap();
 const obj = {
   foo: 1,
+  bar: 2
 }
 const track = (target, key) => {
   if(!activeEffect) return;
@@ -79,17 +80,18 @@ function registerEffect (fn, options={}){
     cleanup(effect);
     activeEffect = effect;
     effectStack.push(effect);
-    fn();
+    const res = fn();
     effectStack.pop();
     activeEffect = effectStack[effectStack.length-1];
+    return res
   })
   //存储副作用函数的依赖集合
   effect.deps=[];
-  effect();
+  if(!options.lazy){
+    effect();
+  }
   effect.options = options;
-}
-function effectFn1(){
-  console.log(proxyObj.foo);  //打印1
+  return effect;
 }
 /**
  * 根据上面的函数，数据与副作用函数见得依赖关系如下
@@ -112,21 +114,40 @@ function flushJob(){
     isFlushing = false;
   })
 }
-registerEffect(effectFn1, {
-  scheduler(fn){
-    jobQueue.add(fn);
-    flushJob();
-  }
-})
-proxyObj.foo++ 
-proxyObj.foo++  //打印3
+// registerEffect(effectFn1, {
+//   lazy: true
+// })
 
+function computed(getter){
+  let value; //value对上一次的值进行缓存
+  let dirty = true; //dirty判断是否需要重新计算
+  const effect = registerEffect(getter, {lazy: true, scheduler(fn){
+    dirty = true;
+    fn();
+  }});
+  const obj = {
+    get value(){
+      if(dirty){
+        console.log('计算了');
+        value = effect();
+        dirty = false;
+      }
+      return value;
+    }
+  }
+  return obj
+}
+const res = computed(()=>proxyObj.foo+proxyObj.bar)
+function effectFn1(){
+  console.log(res.value);
+}
+registerEffect(effectFn1);
 /**
- * 连续对 obj.foo 执行两次自增操作，会同步 且连续地执行两次 scheduler 调度函数，
- * 这意味着同一个副作用函 数会被 jobQueue.add(fn) 语句添加两次，但由于 Set 数据结构的去重能力，
- * 最终 jobQueue 中只会有一项，即当前副作用函数。类似 地，flushJob 也会同步且连续地执行两次，
- * 但由于 isFlushing 标 志的存在，实际上 flushJob 函数在一个事件循环内只会执行一次， 
- * 即在微任务队列内执行一次。当微任务队列开始执行时，就会遍历 jobQueue 并执行里面存储的副作用函数。
- * 由于此时 jobQueue 队列内只有一个副作用函数，所以只会执行一次，并且当它执行时，字段
- * obj.foo 的值已经是 3 了
+ * 这里修改了数据，应该会触发computed重新执行，然后res.value的值会更新，进而应该触发effectFn1函数再次运行
+ * 应该打印出更新后的res.value的值，但是实际上并没有打印。分析原因，从本质上看这是一个effect的嵌套，
+ * 一个计算属性内部拥有自己的副作用函数，并且他是懒执行的，只有当真正读取计算属性的值时才会执行。对于计算属性
+ * 的getter函数来说，它里面访问的响应式数据只会把computed内部的effect收集为依赖，而当计算属性用于另外一个
+ * effect时，就会发生effect嵌套，外层的effect不会被内层effect中的响应式数据收集。
  */
+proxyObj.foo = 3;
+console.log(res.value);
