@@ -170,3 +170,16 @@ effect(()=>{
 [在effect中使用计算属性的值的缺陷](./reactive17.js)
 在effect中使用计算属性的值，本质上属于effect嵌套，内部的响应式数据的变化并不会触发外部effect的再次执行，解决的方法是当读取计算属性的值时，手动调用track函数进行追踪，当计算属性的响应式依赖发生变化时，手动调用trigger函数更新。
 [在effect中使用计算属性的值](./reactive18.js)
+## watch的实现
+watch的实现本质上就是利用了effect以及options.scheduler选项
+```js
+effect(()=>{
+  console.log(obj.foo)
+}, {
+  scheduler(){
+    //当obj.foo的值变化时，就会执行scheduler函数
+  }
+})
+```
+[最基础的watch的实现](./reactive19.js)
+上面这个代码实现了最基础的watch，但是硬编码了对source.foo的读取操作，为了让watch函数具有通用性，需要封装一个通用的读取操作。
