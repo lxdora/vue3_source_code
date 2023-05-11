@@ -190,4 +190,32 @@ watch(()=>obj.foo, cb)
 ```
 如上，传递给watch的第一个参数不是一个响应式数据，而是一个getter函数，在getter函数内部，用户可以指定该watch依赖哪些响应式数据，
 只有在这些数据变化时才会触发回调函数的执行。
+[watch监听getter函数](./reactive21.js)
+目前的实现的watch还有一个缺陷，就是在回调函数中拿不到旧值和新值，这个问题可以通过开启lazy选项，使用懒执行的副作用函数解决
+[watch回调函数拿到旧值和新值](./reactive22.js)
+这个代码中，最核心的改动是使用 lazy 选项创建了一个懒执行的 effect。
+@import "./reactive22.js" {code_block=true line_begin=140 line_end=154}
+手动执行effect函数返回的值就是旧值，即第一次执行得到的值，当发生变化并触发scheduler调度函数执行时，会重新调用effect函数并得到新值。这样就拿到了旧值与新值，接着将他们作为参数传递给回调函数就行。需要注意更新旧值。
+## 立即执行的watch与回调时机
+watch的本质是对effect的二次封装，watch还有两个特性：
+1.立即执行的回调函数
+2.回调函数的执行时机
+```js
+watch(obj, ()=>{
+  console.log('obj变化了')
+})
+```
+[watch立即执行的回调函数](./reactive23.js)
+除了通过immadiate参数来指定回调函数为立即执行之外，还可以通过其他参数来指定回调函数的执行时机。Vue3中使用flush来指定
+```js
+watch(obj, (newv, oldv)=>{
+  console.log({newv, oldv})
+}, {
+  immediate: true,
+  flush: 'pre'  //还可以指定为'post'|'sync'
+})
+```
+flush本质是指定回调函数的执行时机。当 flush 的值为 'post' 时，代表调度函数需要将副作用函数放到一 个微任务队列中，并等待 DOM 更新结束后再执行，
+
+
 

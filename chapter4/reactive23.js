@@ -128,7 +128,7 @@ function traverse(value, seen=new Set()){
   }
   return value;
 }
-function watch(source, cb){
+function watch(source, cb, options){
   let getter;
   //如果source是函数，说明传入的是getter
   if(typeof source === 'function'){
@@ -137,17 +137,32 @@ function watch(source, cb){
     //递归地读取
     getter = () => traverse(source)
   }
-  registerEffect(getter, {
-    scheduler(){
-      cb()
-    }
+  //定义旧值和新值
+  let oldValue, newValue;
+  //注册副作用函数时，开启lazy选项,并把返回值存储到effect中以便后续调用
+  function job(){
+    //返回effect函数
+    newValue = effect();
+    //将旧值和新值作为回调函数的参数
+    cb(newValue, oldValue);
+    oldValue = newValue;
+  }
+  const effect = registerEffect(getter, {
+    scheduler: job,
+    lazy: true,
   })
+  if(options.immediate){
+    job()
+  }else{
+    oldValue = effect();
+  }
 }
 
-watch(()=>proxyObj.foo, ()=>{
-  console.log(proxyObj)
+watch(()=>proxyObj.foo, (newv, oldv)=>{
+  console.log({newv, oldv});
+},{
+  immediate: true
 })
 
 proxyObj.foo = 2  //修改时watch的回调函数执行了
 proxyObj.foo = 3 //修改时watch的回调函数执行了
-proxyObj.bar = 3 //传入的getter只绑定了foo为响应式，bar没有绑定，所以修改时watch的回调函数没有执行
