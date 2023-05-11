@@ -23,6 +23,7 @@ const trigger = (target,key) => {
   const depsMap = bucket.get(target);
   if(depsMap){
     const deps = depsMap.get(key);
+    if(!deps) return;
     deps&&deps.forEach(fn=>fn())
   }
 }

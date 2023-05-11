@@ -28,6 +28,7 @@ const proxyObj = new Proxy(obj, {
     const depsMap = bucket.get(target);
     if(depsMap){
       const deps = depsMap.get(key);
+      if(!deps) return;
       deps&&deps.forEach(fn=>fn())
     }
     return true;

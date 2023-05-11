@@ -1,9 +1,10 @@
 /**
- * 调度器，限制执行次数
+ * 在副作用函数中使用computed的值
  */
 const bucket = new WeakMap();
 const obj = {
   foo: 1,
+  bar: 2
 }
 const track = (target, key) => {
   if(!activeEffect) return;
@@ -80,17 +81,18 @@ function registerEffect (fn, options={}){
     cleanup(effect);
     activeEffect = effect;
     effectStack.push(effect);
-    fn();
+    const res = fn();
     effectStack.pop();
     activeEffect = effectStack[effectStack.length-1];
+    return res
   })
   //存储副作用函数的依赖集合
   effect.deps=[];
-  effect();
+  if(!options.lazy){
+    effect();
+  }
   effect.options = options;
-}
-function effectFn1(){
-  console.log(proxyObj.foo);  //打印1
+  return effect;
 }
 /**
  * 根据上面的函数，数据与副作用函数见得依赖关系如下
@@ -113,21 +115,41 @@ function flushJob(){
     isFlushing = false;
   })
 }
-registerEffect(effectFn1, {
-  scheduler(fn){
-    jobQueue.add(fn);
-    flushJob();
-  }
-})
-proxyObj.foo++ 
-proxyObj.foo++  //打印3
 
-/**
- * 连续对 obj.foo 执行两次自增操作，会同步 且连续地执行两次 scheduler 调度函数，
- * 这意味着同一个副作用函 数会被 jobQueue.add(fn) 语句添加两次，但由于 Set 数据结构的去重能力，
- * 最终 jobQueue 中只会有一项，即当前副作用函数。类似 地，flushJob 也会同步且连续地执行两次，
- * 但由于 isFlushing 标 志的存在，实际上 flushJob 函数在一个事件循环内只会执行一次， 
- * 即在微任务队列内执行一次。当微任务队列开始执行时，就会遍历 jobQueue 并执行里面存储的副作用函数。
- * 由于此时 jobQueue 队列内只有一个副作用函数，所以只会执行一次，并且当它执行时，字段
- * obj.foo 的值已经是 3 了
- */
+function traverse(value, seen=new Set()){
+  //如果读取的数据是原始值或已经被读取过了，什么也不做
+  if(typeof value !== 'object' || value===null || seen.has(value)) return;
+  //将value加入到已读取过的数组，防止循环引用引起死循环
+  seen.add(value);
+  //先不考虑value为数组等结构的情况，假设value是一个对象，使用for...in读取对象的每一个值，并调用traverse
+  //递归每一个值
+  for(let key in value) {
+    traverse(value[key], seen);
+  }
+  return value;
+}
+function watch(source, cb){
+  let getter;
+  //如果source是函数，说明传入的是getter
+  if(typeof source === 'function'){
+    getter = source
+  }else{
+    //递归地读取
+    getter = () => traverse(source)
+  }
+  registerEffect(()=>{
+    getter()
+  }, {
+    scheduler(){
+      cb()
+    }
+  })
+}
+
+watch(()=>proxyObj.foo, ()=>{
+  console.log(proxyObj)
+})
+
+proxyObj.foo = 2  //修改时watch的回调函数执行了
+proxyObj.foo = 3 //修改时watch的回调函数执行了
+proxyObj.bar = 3 //传入的getter只绑定了foo为响应式，bar没有绑定，所以修改时watch的回调函数没有执行
