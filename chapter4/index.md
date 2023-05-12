@@ -216,6 +216,37 @@ watch(obj, (newv, oldv)=>{
 })
 ```
 flush本质是指定回调函数的执行时机。当 flush 的值为 'post' 时，代表调度函数需要将副作用函数放到一 个微任务队列中，并等待 DOM 更新结束后再执行，
-
-
-
+[flush为post的情况](./reactive24.js)
+## 过期的副作用函数
+```js
+let finalData;
+watch(obj, async ()=>{
+  const res = await getData();
+  finalData = res;
+})
+```
+如上代码，watch中使用了异步函数，这就会产生竞态问题，
+@import "./images/竞态.svg"
+根据上面的图片，第一次修改obj，发送了请求A，然后第二次修改obj，发送了请求b，我们无法判断A和B两个请求哪个先返回，实际上，请求B是后发出的，因此我们期望最新的结果应该是请求B返回的结果而不是请求A返回的结果。进一步总结。请求 A 是副作用函数第一次执行所产生的副作用，请求 B 是副作用函数第二次执行所产生的副作用。由于请求 B 后发生，所以请求 B 的结果应该被视为“最新”的，而请求 A 已经“过期”了，其产生的结果应被视为无效。通过这种方式，就可以避免竞态问题导致的错误结果。
+归根结底，我们需要一个能让副作用函数过期的手段。
+> 在 Vue.js 中，watch 函数的回调函数接收第三个参数onInvalidate，它是一个函数，类似于事件监听器，我们可以使用onInvalidate 函数注册一个回调，这个回调函数会在当前副作用函数过期时执行
+```js
+watch(obj, async (newValue, oldValue, onInvalidate)=>{
+  //定义一个标志,代表当前函数是否过期，默认为false，代表没有过期
+  let expired = false;
+  //调用onInvalidate()函数注册一个过期回调
+  onInvalidate(()=>{
+    //当过期时，将expired设置为true
+    expired = true;
+  })
+  //发送网络请求
+  const res = await getData();
+  if(!expired){
+    //只有当没有过期时，才赋值
+    finalData = res;
+  }
+})
+```
+那么onInvalidate的原理是什么呢？
+在watch内部每次检测到变更后，在副作用函数重新执行之前，会先调用通过onInvalidate注册的过期回调。
+[使用onInvalidate注册过期回调](./reactive25.js)
